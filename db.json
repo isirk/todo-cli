@@ -1,3 +1,6 @@
 {
+  "finish": true,
+  "log": true,
+  "get": true,
   "finish this": true
 }

@@ -39,6 +39,17 @@ impl Todo {
             None => None,
         }
     }
+
+    // List todo's that are uncomplete
+    // Open the map (or db) and for each entry that is false list the task as a string
+    // then print or return the string of tasks separated by \n
+    fn list(self) {
+        for (task, state) in self.map {
+            if state {
+                println!("{task}");
+            }
+        }
+    }
 }
 
 fn main() {
@@ -61,5 +72,7 @@ fn main() {
                 Err(why) => println!("An error occurred: {}", why),
             },
         }
+    } else if action == "list" {
+        todo.list();
     }
 }
