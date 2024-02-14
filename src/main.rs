@@ -1,78 +1,94 @@
-use std::collections::HashMap;
+use chrono::DateTime;
+use serde::Deserialize;
+use serde::Serialize;
+use std::io::Write;
 
+#[derive(Deserialize, Serialize)]
 struct Todo {
-    map: HashMap<String, bool>,
+    name: String,
+    completed: bool,
+    _created: DateTime<chrono::Utc>,
+    _due: Option<DateTime<chrono::Utc>>,
 }
 
-impl Todo {
-    fn new() -> Result<Todo, std::io::Error> {
-        let f = std::fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .read(true)
-            .open("db.json")?;
-        match serde_json::from_reader(f) {
-            Ok(map) => Ok(Todo { map }),
-            Err(e) if e.is_eof() => Ok(Todo {
-                map: HashMap::new(),
-            }),
-            Err(e) => panic!("An error occurred: {}", e),
+fn load_todos(path: &std::path::Path) -> Vec<Todo> {
+    let file = std::fs::File::open(path).unwrap();
+    let reader = std::io::BufReader::new(file);
+    let todos = serde_json::from_reader(reader).unwrap();
+    todos
+}
+
+fn save_todos(path: &std::path::Path, todos: &Vec<Todo>) {
+    let file = std::fs::File::create(path).unwrap();
+    serde_json::to_writer(file, &todos).unwrap();
+}
+
+fn run_command(mut todos: Vec<Todo>) -> Vec<Todo> {
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input).unwrap();
+    let input = input.trim();
+    let mut input = input.split_whitespace();
+    let command = input.next().unwrap();
+    let args: Vec<&str> = input.collect();
+
+    match command {
+        // TODO: Need to incorporate the due date
+        "add" => {
+            let name = args.join(" ");
+            let todo = Todo {
+                name,
+                completed: false,
+                _created: chrono::Utc::now(),
+                _due: None,
+            };
+            todos.push(todo);
+            println!("Added");
+            todos
         }
-    }
-
-    fn insert(&mut self, key: String) {
-        self.map.insert(key, true);
-    }
-
-    fn save(self) -> Result<(), Box<dyn std::error::Error>> {
-        let f = std::fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .open("db.json")?;
-        serde_json::to_writer_pretty(f, &self.map)?;
-        Ok(())
-    }
-
-    fn complete(&mut self, key: &String) -> Option<()> {
-        match self.map.get_mut(key) {
-            Some(v) => Some(*v = false),
-            None => None,
+        "mark" => {
+            todo!();
         }
-    }
-
-    // List todo's that are uncomplete
-    // Open the map (or db) and for each entry that is false list the task as a string
-    // then print or return the string of tasks separated by \n
-    fn list(self) {
-        for (task, state) in self.map {
-            if state {
-                println!("{task}");
+        // TODO: Maybe add filtering?
+        "list" => {
+            for todo in &todos {
+                let completed = if todo.completed { "[X]" } else { "[ ]" };
+                println!("{} - {}", completed, todo.name);
             }
+            todos
+        }
+        // TODO: Add remove all (clear)
+        "remove" => {
+            todo!();
+        }
+        "quit" => {
+            std::process::exit(0);
+        }
+        _ => {
+            println!("Invalid command");
+            todos
         }
     }
 }
 
 fn main() {
-    let action = std::env::args().nth(1).expect("Please specify an action");
-    let item = std::env::args().nth(2).expect("Please specify an item");
+    let path = std::path::Path::new("./todos.json");
+    if !path.exists() {
+        let mut file = std::fs::File::create(path).unwrap();
+        file.write_all(b"[]").unwrap();
+    }
 
-    let mut todo = Todo::new().expect("Initialisation of db failed");
+    let mut todos = load_todos(&path);
 
-    if action == "add" {
-        todo.insert(item);
-        match todo.save() {
-            Ok(_) => println!("todo saved"),
-            Err(why) => println!("An error occurred: {}", why),
-        }
-    } else if action == "complete" {
-        match todo.complete(&item) {
-            None => println!("'{}' is not present in the list", item),
-            Some(_) => match todo.save() {
-                Ok(_) => println!("todo saved"),
-                Err(why) => println!("An error occurred: {}", why),
-            },
-        }
-    } else if action == "list" {
-        todo.list();
+    println!("Todo App");
+    println!("========");
+    println!(
+        "Commands:\n- add <item> [-due <date>]\n- mark <task>\n- list\n- remove <task>\n- quit"
+    );
+    println!("========");
+    println!("Usage:\n <command> <args>");
+
+    loop {
+        todos = run_command(todos);
+        save_todos(&path, &todos);
     }
 }
