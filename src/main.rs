@@ -23,7 +23,7 @@ fn save_todos(path: &std::path::Path, todos: &Vec<Todo>) {
     serde_json::to_writer(file, &todos).unwrap();
 }
 
-fn run_command(mut todos: Vec<Todo>) -> Vec<Todo> {
+fn run_command(todos: &mut Vec<Todo>) -> i32 {
     let mut input = String::new();
     std::io::stdin().read_line(&mut input).unwrap();
     let input = input.trim();
@@ -43,29 +43,63 @@ fn run_command(mut todos: Vec<Todo>) -> Vec<Todo> {
             };
             todos.push(todo);
             println!("Added");
-            todos
+            1
         }
-        "mark" => {
-            todo!();
+        "complete" | "mark" => {
+            let index = args.join(" ");
+            if let Ok(index) = index.parse::<usize>() {
+                if let Some(todo) = todos.get_mut(index - 1) {
+                    todo.completed = true;
+                    println!("Done");
+                } else {
+                    println!("Todo {} not found", index);
+                }
+            } else {
+                println!("Invalid index");
+            }
+            1
         }
         // TODO: Maybe add filtering?
-        "list" => {
-            for todo in &todos {
+        "list" | "ls" => {
+            for (index, todo) in todos.iter().enumerate() {
                 let completed = if todo.completed { "[X]" } else { "[ ]" };
-                println!("{} - {}", completed, todo.name);
+                println!("{}. {} - {}", index + 1, completed, todo.name);
             }
-            todos
+            1
         }
         // TODO: Add remove all (clear)
         "remove" => {
-            todo!();
+            let index = args.join(" ");
+            if index == "all" || index == "a" {
+                todos.clear();
+                println!("Cleared");
+                return 1;
+            } else if let Ok(index) = index.parse::<usize>() {
+                if index < todos.len() {
+                    todos.remove(index - 1);
+                    println!("Todo {} has been deleted", index);
+                } else {
+                    println!("Todo {} not found", index + 1);
+                }
+            } else {
+                println!("Invalid index");
+            }
+            1
         }
-        "quit" => {
-            std::process::exit(0);
+        "quit" | "save" => 0,
+        "help" => {
+            println!("========");
+            println!(
+                "Commands:\n- add <item> [-due <date>]\n- complete <task>\n- list\n- remove <task>\n- quit\n- help"
+            );
+            println!("========");
+            println!("Usage:\n <command> <args>");
+            println!("========");
+            1
         }
         _ => {
             println!("Invalid command");
-            todos
+            1
         }
     }
 }
@@ -79,16 +113,23 @@ fn main() {
 
     let mut todos = load_todos(&path);
 
+    println!("========");
     println!("Todo App");
     println!("========");
     println!(
-        "Commands:\n- add <item> [-due <date>]\n- mark <task>\n- list\n- remove <task>\n- quit"
+        "Commands:\n- add <item> [-due <date>]\n- complete <task>\n- list\n- remove <task>\n- quit\n- help"
     );
     println!("========");
     println!("Usage:\n <command> <args>");
+    println!("========");
 
     loop {
-        todos = run_command(todos);
-        save_todos(&path, &todos);
+        let output = run_command(&mut todos);
+        if output == 0 {
+            break;
+        }
     }
+
+    save_todos(path, &todos);
+    std::process::exit(0);
 }
